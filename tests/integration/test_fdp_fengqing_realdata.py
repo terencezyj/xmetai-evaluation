@@ -20,17 +20,19 @@ netCDF4 / cfgrib）时整个模块 skip；平时用 ``pytest -m realdata`` 选�
 于是整场带一个系统性尺度偏移。布局是 weather 系列共用的，不为一万分之一去动它，
 所以容差放到 1e-4（比实测最差宽 15 倍），只拦真回归。
 """
+import argparse
+import sys
+import tempfile
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 import pytest
 
-from tests import runner
-
 pytestmark = pytest.mark.realdata
-pytest.importorskip("netCDF4")
-pytest.importorskip("cfgrib")
+if __name__ != "__main__":
+    pytest.importorskip("netCDF4")
+    pytest.importorskip("cfgrib")
 
 #: 最小 fixture 根：预报 fengqing/ + 实况 cra_root/ + 气候态 cli_fake/ 三件套都
 #: 在它下面。换机器/换位置改这一行（配置里的 ``_DATA_ROOT`` 指的是同一处）。
@@ -137,7 +139,7 @@ GOLDEN_SPECTRUM = {
 _missing = [
     sub for sub in ("fengqing", "cra_root", "cli_fake") if not (DATA_ROOT / sub).is_dir()
 ]
-if _missing:
+if _missing and __name__ != "__main__":
     pytest.skip(
         f"fixture 不存在: {DATA_ROOT}（缺 {', '.join(_missing)}/）", allow_module_level=True
     )
@@ -169,6 +171,8 @@ def _run(config_name: str, output_dir: Path) -> Path:
 @pytest.fixture(scope="session")
 def ens(tmp_path_factory):
     """ens 配置（field_scores + ens_crps + activity_spectrum 三段）跑一次，整模块共用。"""
+    from tests import runner
+
     root = _run("fdp_rmse_ens_fengqing", tmp_path_factory.mktemp("ens"))
     return root, runner.read_scores(root)
 
@@ -176,6 +180,8 @@ def ens(tmp_path_factory):
 @pytest.fixture(scope="session")
 def single(tmp_path_factory):
     """single 配置（field_scores + activity_spectrum 两段）跑一次，整模块共用。"""
+    from tests import runner
+
     root = _run("fdp_rmse_single_fengqing", tmp_path_factory.mktemp("single"))
     return root, runner.read_scores(root)
 
@@ -328,3 +334,31 @@ def test_scores_coverage(ens):
     # 在编的气候态上会顶到接近 1；只要求它有值、不是常数零场兜底出来的。
     for lead in LEADS:
         assert 0.0 < _value(scores, "acc", lead) <= 1.0
+
+
+def main() -> None:
+    """直接运行一条配置，方便在评估链中设置断点。"""
+    parser = argparse.ArgumentParser(description="调试 Fengqing × CRA40 真实数据评估")
+    parser.add_argument("--config", choices=("ens", "single"), default="ens")
+    parser.add_argument("--output-dir", type=Path)
+    args = parser.parse_args()
+
+    config_name = f"fdp_rmse_{args.config}_fengqing"
+    print(f"准备运行 {config_name}，数据目录: {DATA_ROOT}", flush=True)
+    if _missing:
+        raise FileNotFoundError(f"fixture 不存在: {DATA_ROOT}（缺 {', '.join(_missing)}/）")
+
+    # 直接以文件路径运行时，项目根目录不一定在 Python 的模块搜索路径中。
+    sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+    output_dir = args.output_dir or Path(tempfile.mkdtemp(prefix="fdp_fengqing_debug_"))
+    print(f"输出目录: {output_dir}", flush=True)
+    _run(config_name, output_dir)
+
+
+def test_dad():
+    print("asdafasdfasdfsafasdf")
+
+
+if __name__ == "__main__":
+    test_dad()
+    main()

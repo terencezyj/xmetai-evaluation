@@ -33,14 +33,10 @@ import xarray as xr
 
 from xmetai_evaluation.core.contracts import DataIndex, DataRequest, EvaluationBatch
 from xmetai_evaluation.core.errors import ConfigError
-from xmetai_evaluation.pipeline.matcher import (
-    Matcher,
-    add_derived_variables,
-    align_lon_to,
-    align_to_grid,
-)
+from xmetai_evaluation.pipeline.matcher import Matcher, add_derived_variables
 from xmetai_evaluation.pipeline.spec import PipelineSpec, daily_times, hourly_times
 from xmetai_evaluation.pipeline.typhoon import diagnose_track, match_errors
+from xmetai_evaluation.transforms.regrid import align_lon_to, align_to_grid
 from xmetai_evaluation.transforms.temporal import window_sum_at
 
 log = logging.getLogger(__name__)
